@@ -8,7 +8,7 @@ from gi.repository import Gtk, Gdk
 
 from state import GameState
 from save_manager import JsonSaver
-from screens import MainMenu, CharacterCreate, WelcomeScreen, LevelSelect, LoadSelect, BaseScreen
+from screens import MainMenu, CharacterCreate, WelcomeScreen, LoadSelect, BaseScreen
 
 SLOT_DIR = os.path.expanduser("~/.vimtutor-plus")
 SLOT_PATHS = [os.path.join(SLOT_DIR, f"slot_{i}.json") for i in range(3)]
@@ -95,14 +95,12 @@ class App:
     def register_screens(self):
         s_main = MainMenu(self.game, self.on_menu_action)
         s_create = CharacterCreate(self.game, self.on_name_confirmed, self._on_create_back)
-        s_welcome = WelcomeScreen(self.game, lambda: self.show_screen("level_select"), lambda: self.show_screen("main_menu"))
-        s_levels = LevelSelect(self.game, lambda: self.show_screen("main_menu"))
+        s_welcome = WelcomeScreen(self.game, lambda: self.show_screen("main_menu"))
         s_load = LoadSelect(self.game, self.on_slot_selected, self.on_slot_deleted, lambda: self.show_screen("main_menu"))
 
         self._register("main_menu", s_main)
         self._register("character_create", s_create)
         self._register("welcome", s_welcome)
-        self._register("level_select", s_levels)
         self._register("load_select", s_load)
 
     def _register(self, name: str, screen):
@@ -139,7 +137,7 @@ class App:
             last = _read_last_slot()
             if last is not None and _slot_has_name(last):
                 self._bind_slot(last)
-                self.show_screen("level_select")
+                self.show_screen("welcome")
             else:
                 self.show_screen("load_select")
         elif action == "load_game":
@@ -170,7 +168,7 @@ class App:
     def on_slot_selected(self, slot_index: int):
         self._bind_slot(slot_index)
         _write_last_slot(slot_index)
-        self.show_screen("level_select")
+        self.show_screen("welcome")
 
     def on_slot_deleted(self, slot_index: int):
         self._delete_slot(slot_index)

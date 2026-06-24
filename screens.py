@@ -262,10 +262,9 @@ class CharacterCreate(BaseScreen):
 # ── Welcome Screen ────────────────────────────────────────────────────
 
 class WelcomeScreen(BaseScreen):
-    def __init__(self, game_state, on_continue, on_back):
+    def __init__(self, game_state, on_back):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._gs = game_state
-        self.on_continue = on_continue
         self.on_back = on_back
         self._build()
 
@@ -280,7 +279,7 @@ class WelcomeScreen(BaseScreen):
 
         self.pack_start(Gtk.Box(), True, True, 0)
 
-        h = Gtk.Label(label="[ l ]  continuar    [ h ]  volver")
+        h = Gtk.Label(label="[ l / h ]  volver al menú")
         h.override_font(Pango.FontDescription("Sans 10"))
         h.override_color(Gtk.StateFlags.NORMAL, DIM)
         h.set_halign(Gtk.Align.CENTER)
@@ -290,43 +289,7 @@ class WelcomeScreen(BaseScreen):
         self._welcome.set_text(f"BIENVENIDO, {self._gs.player_name}!")
 
     def handle_key(self, event):
-        if event.keyval == Gdk.KEY_l:
-            self.on_continue()
-            return True
-        if event.keyval == Gdk.KEY_h:
-            self.on_back()
-            return True
-        return False
-
-
-# ── Level Select ──────────────────────────────────────────────────────
-
-class LevelSelect(BaseScreen):
-    def __init__(self, game_state, on_back):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self._gs = game_state
-        self.on_back = on_back
-        self._build()
-
-    def _build(self):
-        self.pack_start(Gtk.Box(), True, True, 0)
-
-        t = Gtk.Label(label="SELECCIONAR NIVEL")
-        t.override_font(Pango.FontDescription("Serif 28"))
-        t.override_color(Gtk.StateFlags.NORMAL, GOLD)
-        t.set_halign(Gtk.Align.CENTER)
-        self.pack_start(t, False, False, 0)
-
-        self.pack_start(Gtk.Box(), True, True, 0)
-
-        h = Gtk.Label(label="[ h ]  volver al menú")
-        h.override_font(Pango.FontDescription("Sans 10"))
-        h.override_color(Gtk.StateFlags.NORMAL, DIM)
-        h.set_halign(Gtk.Align.CENTER)
-        self.pack_start(h, False, False, 10)
-
-    def handle_key(self, event):
-        if event.keyval == Gdk.KEY_h:
+        if event.keyval in (Gdk.KEY_l, Gdk.KEY_h):
             self.on_back()
             return True
         return False
