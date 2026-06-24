@@ -2,3 +2,16 @@ __pycache__/
 *.pyc
 .tmp
 docs/*.md
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local data / logs
+*.log
