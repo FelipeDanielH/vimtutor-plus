@@ -95,7 +95,7 @@ class App:
     def register_screens(self):
         s_main = MainMenu(self.game, self.on_menu_action)
         s_create = CharacterCreate(self.game, self.on_name_confirmed, self._on_create_back)
-        s_intro = IntroScreen(self.game, lambda: self.show_screen("game_screen"))
+        s_intro = IntroScreen(self.game, self._on_intro_done)
         s_load = LoadSelect(self.game, self.on_slot_selected, self.on_slot_deleted, lambda: self.show_screen("main_menu"))
         s_game = GameScreen(self.game, 1, self.on_level_complete, lambda: self.show_screen("main_menu"))
 
@@ -139,7 +139,7 @@ class App:
             last = _read_last_slot()
             if last is not None and _slot_has_name(last):
                 self._bind_slot(last)
-                self.show_screen("intro")
+                self._show_intro_or_skip()
             else:
                 self.show_screen("load_select")
         elif action == "load_game":
@@ -158,6 +158,17 @@ class App:
         elif action == "quit":
             self.window.destroy()
 
+    def _on_intro_done(self):
+        self.game.intro_seen = True
+        self.game.save()
+        self.show_screen("game_screen")
+
+    def _show_intro_or_skip(self):
+        if self.game.intro_seen:
+            self.show_screen("game_screen")
+        else:
+            self.show_screen("intro")
+
     def on_name_confirmed(self):
         saver = JsonSaver(SLOT_PATHS[self._pending_slot])
         self.game.set_saver(saver)
@@ -170,7 +181,7 @@ class App:
     def on_slot_selected(self, slot_index: int):
         self._bind_slot(slot_index)
         _write_last_slot(slot_index)
-        self.show_screen("intro")
+        self._show_intro_or_skip()
 
     def on_slot_deleted(self, slot_index: int):
         self._delete_slot(slot_index)

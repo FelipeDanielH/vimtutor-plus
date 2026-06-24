@@ -26,6 +26,15 @@ class GameState:
         self._d["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         self._saver.save(self._d)
 
+    # -- meta --
+    @property
+    def intro_seen(self) -> bool:
+        return self._d.get("intro_seen", False)
+
+    @intro_seen.setter
+    def intro_seen(self, value: bool) -> None:
+        self._d["intro_seen"] = value
+
     # -- player --
     @property
     def player_name(self) -> str:
