@@ -492,6 +492,7 @@ class GameScreen(BaseScreen):
         self._terminal.show()
         self._help.set_text("[ F10 ]  pausa")
         self._launch_vim()
+        self._terminal.grab_focus()
 
     def _launch_vim(self):
         swap = os.path.join(os.path.dirname(self._tmp_file), "." + os.path.basename(self._tmp_file) + ".swp")
