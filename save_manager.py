@@ -27,7 +27,7 @@ def new_save_data() -> dict:
         "schema_version": CURRENT_SCHEMA_VERSION,
         "created_at": now,
         "updated_at": now,
-        "player": {"xp": 0, "hp": 3, "max_hp": 5, "currency": {}},
+        "player": {"name": "", "xp": 0, "hp": 3, "max_hp": 5, "currency": {}},
         "progression": {"unlocked_levels": [1], "completed_levels": {}, "stars": {}},
         "settings": {"theme": "default", "font_size": 12},
     }

@@ -4,15 +4,37 @@ from save_manager import Saver, new_save_data
 
 
 class GameState:
-    def __init__(self, saver: Saver):
+    def __init__(self, saver: Saver | None = None):
+        self._saver = saver
+        if saver is not None:
+            data = saver.load()
+            if data is None:
+                data = new_save_data()
+            self._d = data
+        else:
+            self._d = new_save_data()
+
+    def set_saver(self, saver: Saver) -> None:
         self._saver = saver
         data = saver.load()
-        if data is None:
-            data = new_save_data()
-            saver.save(data)
-        self._d = data
+        if data is not None:
+            self._d = data
+
+    def save(self) -> None:
+        if self._saver is None:
+            return
+        self._d["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        self._saver.save(self._d)
 
     # -- player --
+    @property
+    def player_name(self) -> str:
+        return self._d["player"].get("name", "")
+
+    @player_name.setter
+    def player_name(self, value: str) -> None:
+        self._d["player"]["name"] = value
+
     @property
     def xp(self) -> int:
         return self._d["player"]["xp"]
@@ -86,12 +108,8 @@ class GameState:
     def settings(self) -> dict:
         return self._d["settings"]
 
-    # -- persistence --
-    def save(self) -> None:
-        self._d["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-        self._saver.save(self._d)
-
     def reset(self) -> None:
         fresh = new_save_data()
         self._d = fresh
-        self._saver.save(fresh)
+        if self._saver is not None:
+            self._saver.save(fresh)
