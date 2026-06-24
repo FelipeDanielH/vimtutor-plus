@@ -358,6 +358,15 @@ class GameScreen(BaseScreen):
             ("REINICIAR", "restart"),
             ("IR AL MENÚ", "quit"),
         ]
+        self._level_type = "terminal"
+        self._canvas = None
+        self._grid = []
+        self._player_row = 0
+        self._player_col = 0
+        self._goal_row = 0
+        self._goal_col = 0
+        self._rows = 0
+        self._cols = 0
         self._build()
 
     def _build(self):
@@ -368,6 +377,7 @@ class GameScreen(BaseScreen):
 
         from levels import LEVELS
         lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        self._level_type = lv.get("type", "terminal")
         self._title = Gtk.Label(label=f"NIVEL {lv['id']}: {lv['name']}")
         self._title.override_font(Pango.FontDescription("Serif 20"))
         self._title.override_color(Gtk.StateFlags.NORMAL, GOLD)
@@ -406,6 +416,11 @@ class GameScreen(BaseScreen):
         self._terminal.connect("child-exited", self._on_vim_exited)
         self._terminal.connect("move-focus", lambda w, d: True)
         self._game_box.pack_start(self._terminal, True, True, 0)
+
+        self._canvas = Gtk.DrawingArea()
+        self._canvas.set_can_focus(False)
+        self._canvas.connect("draw", self._on_canvas_draw)
+        self._game_box.pack_start(self._canvas, True, True, 0)
 
         self._result_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._result_box.set_can_focus(False)
@@ -476,6 +491,70 @@ class GameScreen(BaseScreen):
         self.pack_start(self._help, False, False, 6)
 
         self._draw_pause()
+        if self._level_type == "maze":
+            self._init_maze(lv)
+            self._canvas.show()
+            self._terminal.hide()
+        else:
+            self._canvas.hide()
+
+    def _init_maze(self, lv):
+        raw = lv["grid"]
+        self._grid = [list(row) for row in raw]
+        self._rows = len(raw)
+        self._cols = len(raw[0])
+        for r in range(self._rows):
+            for c in range(self._cols):
+                ch = self._grid[r][c]
+                if ch == '@':
+                    self._player_row = r
+                    self._player_col = c
+                    self._grid[r][c] = '.'
+                elif ch == 'G':
+                    self._goal_row = r
+                    self._goal_col = c
+                    self._grid[r][c] = '.'
+
+    def _on_canvas_draw(self, widget, cr):
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        cell = min(w // self._cols, h // self._rows)
+        ox = (w - cell * self._cols) // 2
+        oy = (h - cell * self._rows) // 2
+
+        cr.set_source_rgba(0.05, 0.05, 0.08, 1)
+        cr.rectangle(0, 0, w, h)
+        cr.fill()
+
+        for r in range(self._rows):
+            for c in range(self._cols):
+                x = ox + c * cell
+                y = oy + r * cell
+                if self._grid[r][c] == '#':
+                    cr.set_source_rgba(0.16, 0.16, 0.22, 1)
+                    cr.rectangle(x, y, cell, cell)
+                    cr.fill()
+                    cr.set_source_rgba(0.22, 0.22, 0.30, 1)
+                    cr.set_line_width(0.5)
+                    cr.rectangle(x, y, cell, cell)
+                    cr.stroke()
+
+        gx = ox + self._goal_col * cell
+        gy = oy + self._goal_row * cell
+        cr.set_source_rgba(0, 0.8, 0.4, 1)
+        margin = cell * 0.15
+        cr.move_to(gx + cell / 2, gy + margin)
+        cr.line_to(gx + cell - margin, gy + cell / 2)
+        cr.line_to(gx + cell / 2, gy + cell - margin)
+        cr.line_to(gx + margin, gy + cell / 2)
+        cr.close_path()
+        cr.fill()
+
+        px = ox + self._player_col * cell
+        py = oy + self._player_row * cell
+        cr.set_source_rgba(0.85, 0.72, 0.31, 1)
+        cr.arc(px + cell / 2, py + cell / 2, cell * 0.35, 0, 6.28318)
+        cr.fill()
 
     def _draw_pause(self):
         for i, lbl in enumerate(self._pause_labels):
@@ -491,10 +570,6 @@ class GameScreen(BaseScreen):
     def on_show(self):
         from levels import LEVELS
         lv = next(x for x in LEVELS if x["id"] == self._level_id)
-        tmp_dir = os.path.join(tempfile.gettempdir(), "vimtutor")
-        os.makedirs(tmp_dir, exist_ok=True)
-        self._tmp_file = os.path.join(tmp_dir, f"level_{self._level_id}.txt")
-        shutil.copy(lv["start_file"], self._tmp_file)
 
         self._phase = "playing"
         self._passed = False
@@ -503,10 +578,22 @@ class GameScreen(BaseScreen):
         self._result_xp.set_text("")
         self._result_box.hide()
         self._pause_box.hide()
-        self._terminal.show()
         self._help.set_text("[ F10 ]  pausa")
-        self._launch_vim()
-        self._terminal.grab_focus()
+
+        if self._level_type == "maze":
+            self._init_maze(lv)
+            self._canvas.show()
+            self._terminal.hide()
+            self._canvas.queue_draw()
+        else:
+            tmp_dir = os.path.join(tempfile.gettempdir(), "vimtutor")
+            os.makedirs(tmp_dir, exist_ok=True)
+            self._tmp_file = os.path.join(tmp_dir, f"level_{self._level_id}.txt")
+            shutil.copy(lv["start_file"], self._tmp_file)
+            self._canvas.hide()
+            self._terminal.show()
+            self._launch_vim()
+            self._terminal.grab_focus()
 
     def _launch_vim(self):
         swap = os.path.join(os.path.dirname(self._tmp_file), "." + os.path.basename(self._tmp_file) + ".swp")
@@ -571,6 +658,8 @@ class GameScreen(BaseScreen):
             if event.keyval == Gdk.KEY_F10:
                 self._enter_pause()
                 return True
+            if self._level_type == "maze":
+                return self._handle_maze_key(event)
             self._terminal.grab_focus()
             return False
         if self._phase == "pause":
@@ -582,10 +671,52 @@ class GameScreen(BaseScreen):
             return False
         return False
 
+    def _handle_maze_key(self, event):
+        dr = dc = 0
+        if event.keyval == Gdk.KEY_h:
+            dr, dc = 0, -1
+        elif event.keyval == Gdk.KEY_l:
+            dr, dc = 0, 1
+        elif event.keyval == Gdk.KEY_k:
+            dr, dc = -1, 0
+        elif event.keyval == Gdk.KEY_j:
+            dr, dc = 1, 0
+        else:
+            return False
+        nr = self._player_row + dr
+        nc = self._player_col + dc
+        if not (0 <= nr < self._rows and 0 <= nc < self._cols):
+            return True
+        if self._grid[nr][nc] == '#':
+            return True
+        self._player_row = nr
+        self._player_col = nc
+        self._canvas.queue_draw()
+        if nr == self._goal_row and nc == self._goal_col:
+            self._on_maze_complete()
+        return True
+
+    def _on_maze_complete(self):
+        self._passed = True
+        self._phase = "result"
+        from levels import LEVELS
+        lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        self._canvas.hide()
+        self._result_title.set_text("¡TESORO ENCONTRADO!")
+        self._result_title.override_color(Gtk.StateFlags.NORMAL, GREEN)
+        self._result_xp.set_text(f"★ ★ ★   XP +{lv['xp']}")
+        self._result_xp.override_color(Gtk.StateFlags.NORMAL, GOLD)
+        self._result_box.show()
+        self._help.set_text("[ F10 ]  pausa    [ l ]  continuar")
+        self.on_complete(self._level_id)
+
     def _enter_pause(self):
         self._phase = "pause"
         self._pause_index = 0
-        self._terminal.hide()
+        if self._level_type == "maze":
+            self._canvas.hide()
+        else:
+            self._terminal.hide()
         self._pause_box.show()
         self._draw_pause()
 
@@ -615,19 +746,31 @@ class GameScreen(BaseScreen):
     def _resume_game(self):
         self._phase = "playing"
         self._pause_box.hide()
-        self._terminal.show()
-        self._terminal.grab_focus()
+        if self._level_type == "maze":
+            self._canvas.show()
+            self._canvas.queue_draw()
+        else:
+            self._terminal.show()
+            self._terminal.grab_focus()
         self._help.set_text("[ F10 ]  pausa")
 
     def _restart_level(self):
         from levels import LEVELS
+        lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        if self._level_type == "maze":
+            self._init_maze(lv)
+            self._phase = "playing"
+            self._pause_box.hide()
+            self._canvas.show()
+            self._help.set_text("[ F10 ]  pausa")
+            self._canvas.queue_draw()
+            return
         if self._pid:
             try:
                 os.kill(self._pid, 15)
             except OSError:
                 pass
             self._pid = None
-        lv = next(x for x in LEVELS if x["id"] == self._level_id)
         shutil.copy(lv["start_file"], self._tmp_file)
         self._phase = "playing"
         self._pause_box.hide()
