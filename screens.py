@@ -2,7 +2,7 @@ import os
 import json
 import shutil
 import tempfile
-from gi.repository import Gtk, Gdk, Pango, GLib, Vte
+from gi.repository import Gtk, Gdk, Pango, GLib, Vte, cairo
 
 
 SLOT_DIR = os.path.expanduser("~/.vimtutor-plus")
