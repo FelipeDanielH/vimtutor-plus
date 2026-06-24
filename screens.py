@@ -352,6 +352,12 @@ class GameScreen(BaseScreen):
         self._tmp_file = None
         self._phase = "playing"
         self._passed = False
+        self._pause_index = 0
+        self._pause_items = [
+            ("RESUMIR", "resume"),
+            ("REINICIAR", "restart"),
+            ("IR AL MENÚ", "quit"),
+        ]
         self._build()
 
     def _build(self):
@@ -380,7 +386,10 @@ class GameScreen(BaseScreen):
         self._guide.set_halign(Gtk.Align.CENTER)
         top.pack_start(self._guide, False, False, 2)
 
-        self.pack_start(Gtk.Box(), False, False, 0)
+        # ── game area ──────────────────────────────────────────
+
+        self._game_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.pack_start(self._game_box, True, True, 0)
 
         self._terminal = Vte.Terminal()
         self._terminal.set_size(80, 20)
@@ -390,12 +399,12 @@ class GameScreen(BaseScreen):
         self._terminal.override_background_color(Gtk.StateFlags.NORMAL,
                                                   Gdk.RGBA(0.05, 0.05, 0.1, 1))
         self._terminal.connect("child-exited", self._on_vim_exited)
-        self.pack_start(self._terminal, True, True, 0)
+        self._game_box.pack_start(self._terminal, True, True, 0)
 
         self._result_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._result_box.set_halign(Gtk.Align.CENTER)
         self._result_box.set_valign(Gtk.Align.CENTER)
-        self.pack_start(self._result_box, True, True, 0)
+        self._game_box.pack_start(self._result_box, True, True, 0)
 
         self._result_title = Gtk.Label()
         self._result_title.override_font(Pango.FontDescription("Serif 28"))
@@ -409,14 +418,64 @@ class GameScreen(BaseScreen):
 
         self._result_box.pack_start(Gtk.Box(), True, True, 0)
 
-        self._help = Gtk.Label(label="[ q ]  salir del nivel")
+        # ── pause overlay ──────────────────────────────────────
+
+        self._pause_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._pause_box.set_halign(Gtk.Align.CENTER)
+        self._pause_box.set_valign(Gtk.Align.CENTER)
+        self._game_box.pack_start(self._pause_box, True, True, 0)
+
+        pause_title = Gtk.Label(label="— P A U S A —")
+        pause_title.override_font(Pango.FontDescription("Serif 24"))
+        pause_title.override_color(Gtk.StateFlags.NORMAL, GOLD)
+        pause_title.set_halign(Gtk.Align.CENTER)
+        self._pause_box.pack_start(pause_title, False, False, 0)
+
+        self._pause_box.pack_start(Gtk.Box(), False, True, 0)
+
+        self._pause_labels: list[Gtk.Label] = []
+        for text, action in self._pause_items:
+            lbl = Gtk.Label(label=text)
+            lbl._action = action
+            lbl.override_font(Pango.FontDescription("Sans 18"))
+            lbl.set_padding(0, 10)
+            lbl.set_halign(Gtk.Align.CENTER)
+            lbl.show()
+            self._pause_box.pack_start(lbl, False, False, 0)
+            self._pause_labels.append(lbl)
+
+        self._pause_box.pack_start(Gtk.Box(), True, True, 0)
+
+        self._pause_help = Gtk.Label()
+        self._pause_help.override_font(Pango.FontDescription("Sans 10"))
+        self._pause_help.set_halign(Gtk.Align.CENTER)
+        self._pause_box.pack_start(self._pause_help, False, False, 8)
+
+        self._pause_box.hide()
+
+        # ── help bar ───────────────────────────────────────────
+
+        self._help = Gtk.Label(label="[ F10 ]  pausa")
         self._help.override_font(Pango.FontDescription("Sans 10"))
         self._help.override_color(Gtk.StateFlags.NORMAL, DIM)
         self._help.set_halign(Gtk.Align.CENTER)
         self.pack_start(self._help, False, False, 6)
 
+        self._draw_pause()
+
+    def _draw_pause(self):
+        for i, lbl in enumerate(self._pause_labels):
+            if i == self._pause_index:
+                lbl.set_text(f"  ►  {self._pause_items[i][0]}")
+                lbl.override_color(Gtk.StateFlags.NORMAL, GOLD)
+            else:
+                lbl.set_text(f"     {self._pause_items[i][0]}")
+                lbl.override_color(Gtk.StateFlags.NORMAL, GOLD_DIM)
+        self._pause_help.set_text("[ j / k ]  navegar    [ l ]  seleccionar    [ h ]  volver")
+        self._pause_help.override_color(Gtk.StateFlags.NORMAL, DIM)
+
     def on_show(self):
-        from levels import LEVELS, get_start
+        from levels import LEVELS
         lv = next(x for x in LEVELS if x["id"] == self._level_id)
         tmp_dir = os.path.join(tempfile.gettempdir(), "vimtutor")
         os.makedirs(tmp_dir, exist_ok=True)
@@ -425,14 +484,16 @@ class GameScreen(BaseScreen):
 
         self._phase = "playing"
         self._passed = False
+        self._pause_index = 0
         self._result_title.set_text("")
         self._result_xp.set_text("")
         self._result_box.hide()
+        self._pause_box.hide()
         self._terminal.show()
-        self._help.set_text("[ q ]  salir del nivel")
+        self._help.set_text("[ F10 ]  pausa")
+        self._launch_vim()
 
-        # Hide game_title on result? No, keep it.
-
+    def _launch_vim(self):
         vim_path = shutil.which("vim") or "/usr/bin/vim"
         ok, pid = self._terminal.spawn_sync(
             Vte.PtyFlags.DEFAULT,
@@ -483,21 +544,73 @@ class GameScreen(BaseScreen):
                                                Gdk.RGBA(0.9, 0.3, 0.2, 1))
             self._result_xp.set_text("")
         self._result_box.show()
-        self._help.set_text("[ l ]  continuar")
+        self._help.set_text("[ F10 ]  pausa    [ l ]  continuar")
 
     def handle_key(self, event):
         if self._phase == "playing":
-            if event.keyval == Gdk.KEY_q:
-                self.on_back()
+            if event.keyval == Gdk.KEY_F10:
+                self._enter_pause()
                 return True
-            if event.keyval == Gdk.KEY_h:
+            return False
+        if self._phase == "pause":
+            return self._handle_pause_key(event)
+        if self._phase == "result":
+            if event.keyval == Gdk.KEY_l:
                 self.on_back()
                 return True
             return False
-        if self._phase == "result" and event.keyval == Gdk.KEY_l:
-            self.on_back()
+        return False
+
+    def _enter_pause(self):
+        self._phase = "pause"
+        self._pause_index = 0
+        self._terminal.hide()
+        self._pause_box.show()
+        self._draw_pause()
+
+    def _handle_pause_key(self, event):
+        if event.keyval in (Gdk.KEY_j, Gdk.KEY_Down):
+            self._pause_index = (self._pause_index + 1) % len(self._pause_labels)
+            self._draw_pause()
+            return True
+        if event.keyval in (Gdk.KEY_k, Gdk.KEY_Up):
+            self._pause_index = (self._pause_index - 1) % len(self._pause_labels)
+            self._draw_pause()
+            return True
+        if event.keyval == Gdk.KEY_l:
+            action = self._pause_labels[self._pause_index]._action
+            if action == "resume":
+                self._resume_game()
+            elif action == "restart":
+                self._restart_level()
+            elif action == "quit":
+                self.on_back()
+            return True
+        if event.keyval == Gdk.KEY_h:
+            self._resume_game()
             return True
         return False
+
+    def _resume_game(self):
+        self._phase = "playing"
+        self._pause_box.hide()
+        self._terminal.show()
+        self._help.set_text("[ F10 ]  pausa")
+
+    def _restart_level(self):
+        from levels import LEVELS
+        if self._pid:
+            try:
+                os.kill(self._pid, 15)
+            except OSError:
+                pass
+            self._pid = None
+        lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        shutil.copy(lv["start_file"], self._tmp_file)
+        self._phase = "playing"
+        self._pause_box.hide()
+        self._terminal.show()
+        self._launch_vim()
 
 
 # ── Load Select ───────────────────────────────────────────────────────
