@@ -494,11 +494,16 @@ class GameScreen(BaseScreen):
         self._launch_vim()
 
     def _launch_vim(self):
+        swap = os.path.join(os.path.dirname(self._tmp_file), "." + os.path.basename(self._tmp_file) + ".swp")
+        try:
+            os.remove(swap)
+        except OSError:
+            pass
         vim_path = shutil.which("vim") or "/usr/bin/vim"
         ok, pid = self._terminal.spawn_sync(
             Vte.PtyFlags.DEFAULT,
             None,
-            [vim_path, self._tmp_file],
+            [vim_path, "-n", self._tmp_file],
             [],
             GLib.SpawnFlags.DEFAULT,
             None,
