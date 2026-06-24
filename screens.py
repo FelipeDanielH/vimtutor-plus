@@ -493,6 +493,7 @@ class GameScreen(BaseScreen):
         self._help.set_text("[ F10 ]  pausa")
         self._launch_vim()
         self._terminal.grab_focus()
+        self._terminal.grab_add()
 
     def _launch_vim(self):
         swap = os.path.join(os.path.dirname(self._tmp_file), "." + os.path.basename(self._tmp_file) + ".swp")
@@ -514,6 +515,7 @@ class GameScreen(BaseScreen):
         self._pid = pid if ok else None
 
     def on_hide(self):
+        self._terminal.grab_remove()
         if self._pid:
             try:
                 os.kill(self._pid, 15)
@@ -523,6 +525,7 @@ class GameScreen(BaseScreen):
 
     def _on_vim_exited(self, terminal, status):
         self._pid = None
+        self._terminal.grab_remove()
         from levels import get_expected, evaluate
 
         expected = get_expected(self._level_id)
@@ -569,6 +572,7 @@ class GameScreen(BaseScreen):
 
     def _enter_pause(self):
         self._phase = "pause"
+        self._terminal.grab_remove()
         self._pause_index = 0
         self._terminal.hide()
         self._pause_box.show()
@@ -601,10 +605,13 @@ class GameScreen(BaseScreen):
         self._phase = "playing"
         self._pause_box.hide()
         self._terminal.show()
+        self._terminal.grab_focus()
+        self._terminal.grab_add()
         self._help.set_text("[ F10 ]  pausa")
 
     def _restart_level(self):
         from levels import LEVELS
+        self._terminal.grab_remove()
         if self._pid:
             try:
                 os.kill(self._pid, 15)
@@ -617,6 +624,8 @@ class GameScreen(BaseScreen):
         self._pause_box.hide()
         self._terminal.show()
         self._launch_vim()
+        self._terminal.grab_focus()
+        self._terminal.grab_add()
 
 
 # ── Load Select ───────────────────────────────────────────────────────
