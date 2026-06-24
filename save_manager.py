@@ -4,7 +4,7 @@ import os
 import time
 
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 class Saver(ABC):
@@ -27,7 +27,7 @@ def new_save_data() -> dict:
         "schema_version": CURRENT_SCHEMA_VERSION,
         "created_at": now,
         "updated_at": now,
-        "intro_seen": False,
+        "milestone": "",
         "player": {"name": "", "xp": 0, "hp": 3, "max_hp": 5, "currency": {}},
         "progression": {"unlocked_levels": [1], "completed_levels": {}, "stars": {}},
         "settings": {"theme": "default", "font_size": 12},
@@ -46,6 +46,15 @@ def migrate(data: dict) -> dict:
 
 
 _MIGRATIONS: dict[int, callable] = {}
+
+
+def _migrate_v1_to_v2(data: dict) -> dict:
+    intro_seen = data.pop("intro_seen", False)
+    data["milestone"] = "level_1" if intro_seen else ""
+    return data
+
+
+_MIGRATIONS[2] = _migrate_v1_to_v2
 
 
 class JsonSaver(Saver):

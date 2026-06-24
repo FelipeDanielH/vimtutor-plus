@@ -26,14 +26,14 @@ class GameState:
         self._d["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         self._saver.save(self._d)
 
-    # -- meta --
+    # -- milestone --
     @property
-    def intro_seen(self) -> bool:
-        return self._d.get("intro_seen", False)
+    def milestone(self) -> str:
+        return self._d.get("milestone", "")
 
-    @intro_seen.setter
-    def intro_seen(self, value: bool) -> None:
-        self._d["intro_seen"] = value
+    @milestone.setter
+    def milestone(self, value: str) -> None:
+        self._d["milestone"] = value
 
     # -- player --
     @property

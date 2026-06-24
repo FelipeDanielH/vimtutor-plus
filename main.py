@@ -159,12 +159,12 @@ class App:
             self.window.destroy()
 
     def _on_intro_done(self):
-        self.game.intro_seen = True
+        self.game.milestone = "level_1"
         self.game.save()
         self.show_screen("game_screen")
 
     def _show_intro_or_skip(self):
-        if self.game.intro_seen:
+        if self.game.milestone:
             self.show_screen("game_screen")
         else:
             self.show_screen("intro")
