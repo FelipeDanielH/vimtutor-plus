@@ -1,6 +1,6 @@
 import os
 import json
-from gi.repository import Gtk, Gdk, Pango
+from gi.repository import Gtk, Gdk, Pango, GLib
 
 
 SLOT_DIR = os.path.expanduser("~/.vimtutor-plus")
@@ -259,38 +259,80 @@ class CharacterCreate(BaseScreen):
         return False
 
 
-# ── Welcome Screen ────────────────────────────────────────────────────
+# ── Intro Screen ────────────────────────────────────────────────────────
 
-class WelcomeScreen(BaseScreen):
-    def __init__(self, game_state, on_back):
+class IntroScreen(BaseScreen):
+    def __init__(self, game_state, on_continue):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._gs = game_state
-        self.on_back = on_back
+        self.on_continue = on_continue
+        self._intro_text = ""
+        self._char_index = 0
+        self._show_prompt = False
+        self._timeout_id = None
         self._build()
 
     def _build(self):
         self.pack_start(Gtk.Box(), True, True, 0)
 
-        self._welcome = Gtk.Label()
-        self._welcome.override_font(Pango.FontDescription("Serif 32"))
-        self._welcome.override_color(Gtk.StateFlags.NORMAL, GOLD)
-        self._welcome.set_halign(Gtk.Align.CENTER)
-        self.pack_start(self._welcome, False, False, 0)
+        self._label = Gtk.Label()
+        self._label.override_font(Pango.FontDescription("Sans 16"))
+        self._label.override_color(Gtk.StateFlags.NORMAL, GOLD)
+        self._label.set_halign(Gtk.Align.CENTER)
+        self._label.set_valign(Gtk.Align.CENTER)
+        self._label.set_line_wrap(True)
+        self._label.set_max_width_chars(44)
+        self.pack_start(self._label, True, True, 0)
 
-        self.pack_start(Gtk.Box(), True, True, 0)
+        self._prompt = Gtk.Label()
+        self._prompt.override_font(Pango.FontDescription("Sans 12"))
+        self._prompt.override_color(Gtk.StateFlags.NORMAL, GOLD)
+        self._prompt.set_halign(Gtk.Align.CENTER)
+        self.pack_start(self._prompt, False, False, 24)
 
-        h = Gtk.Label(label="[ l / h ]  volver al menú")
-        h.override_font(Pango.FontDescription("Sans 10"))
-        h.override_color(Gtk.StateFlags.NORMAL, DIM)
-        h.set_halign(Gtk.Align.CENTER)
-        self.pack_start(h, False, False, 10)
+        self.pack_start(Gtk.Box(), False, False, 0)
 
     def on_show(self):
-        self._welcome.set_text(f"BIENVENIDO, {self._gs.player_name}!")
+        self._intro_text = (
+            "En un mundo de código y terminales…\n\n"
+            "un editor se alza como el más poderoso.\n\n"
+            "Vim, el editor ancestral,\n"
+            "guarda secretos que pocos dominan.\n\n"
+            "Tú, elegido por el destino,\n"
+            "deberás recorrer el camino del guerrero Vim.\n\n"
+            "Aprende sus comandos.\n"
+            "Supera sus desafíos.\n"
+            "Conviértete en el maestro del editor.\n\n"
+            "El viaje comienza ahora."
+        )
+        self._char_index = 0
+        self._show_prompt = False
+        self._label.set_text("")
+        self._prompt.set_text("")
+        self._timeout_id = GLib.timeout_add(40, self._tick)
+
+    def on_hide(self):
+        if self._timeout_id:
+            GLib.source_remove(self._timeout_id)
+            self._timeout_id = None
+
+    def _tick(self):
+        if self._char_index < len(self._intro_text):
+            self._char_index += 1
+            self._label.set_text(self._intro_text[:self._char_index])
+            self._timeout_id = GLib.timeout_add(40, self._tick)
+            return False
+        GLib.timeout_add(2000, self._show_continue_prompt)
+        return False
+
+    def _show_continue_prompt(self):
+        self._show_prompt = True
+        self._prompt.set_text("PULSE  [  l  ]  PARA CONTINUAR")
+        return False
 
     def handle_key(self, event):
-        if event.keyval in (Gdk.KEY_l, Gdk.KEY_h):
-            self.on_back()
+        if self._show_prompt and event.keyval == Gdk.KEY_l:
+            self.on_continue()
             return True
         return False
 
