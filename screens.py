@@ -362,6 +362,7 @@ class GameScreen(BaseScreen):
 
     def _build(self):
         top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        top.set_can_focus(False)
         top.set_halign(Gtk.Align.CENTER)
         self.pack_start(top, False, False, 0)
 
@@ -371,12 +372,14 @@ class GameScreen(BaseScreen):
         self._title.override_font(Pango.FontDescription("Serif 20"))
         self._title.override_color(Gtk.StateFlags.NORMAL, GOLD)
         self._title.set_halign(Gtk.Align.CENTER)
+        self._title.set_can_focus(False)
         top.pack_start(self._title, False, False, 4)
 
         self._inst = Gtk.Label(label=lv["instruction"])
         self._inst.override_font(Pango.FontDescription("Sans 12"))
         self._inst.override_color(Gtk.StateFlags.NORMAL, SUBTLE)
         self._inst.set_halign(Gtk.Align.CENTER)
+        self._inst.set_can_focus(False)
         top.pack_start(self._inst, False, False, 2)
 
         guide_text = "  ".join(f"[{k}] {d}" for k, d in lv["guide"])
@@ -384,11 +387,13 @@ class GameScreen(BaseScreen):
         self._guide.override_font(Pango.FontDescription("Sans 10"))
         self._guide.override_color(Gtk.StateFlags.NORMAL, DIM)
         self._guide.set_halign(Gtk.Align.CENTER)
+        self._guide.set_can_focus(False)
         top.pack_start(self._guide, False, False, 2)
 
         # ── game area ──────────────────────────────────────────
 
         self._game_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._game_box.set_can_focus(False)
         self.pack_start(self._game_box, True, True, 0)
 
         self._terminal = Vte.Terminal()
@@ -399,19 +404,23 @@ class GameScreen(BaseScreen):
         self._terminal.override_background_color(Gtk.StateFlags.NORMAL,
                                                   Gdk.RGBA(0.05, 0.05, 0.1, 1))
         self._terminal.connect("child-exited", self._on_vim_exited)
+        self._terminal.connect("move-focus", lambda w, d: True)
         self._game_box.pack_start(self._terminal, True, True, 0)
 
         self._result_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._result_box.set_can_focus(False)
         self._result_box.set_halign(Gtk.Align.CENTER)
         self._result_box.set_valign(Gtk.Align.CENTER)
         self._game_box.pack_start(self._result_box, True, True, 0)
 
         self._result_title = Gtk.Label()
+        self._result_title.set_can_focus(False)
         self._result_title.override_font(Pango.FontDescription("Serif 28"))
         self._result_title.set_halign(Gtk.Align.CENTER)
         self._result_box.pack_start(self._result_title, False, False, 0)
 
         self._result_xp = Gtk.Label()
+        self._result_xp.set_can_focus(False)
         self._result_xp.override_font(Pango.FontDescription("Sans 18"))
         self._result_xp.set_halign(Gtk.Align.CENTER)
         self._result_box.pack_start(self._result_xp, False, False, 10)
@@ -421,11 +430,13 @@ class GameScreen(BaseScreen):
         # ── pause overlay ──────────────────────────────────────
 
         self._pause_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._pause_box.set_can_focus(False)
         self._pause_box.set_halign(Gtk.Align.CENTER)
         self._pause_box.set_valign(Gtk.Align.CENTER)
         self._game_box.pack_start(self._pause_box, True, True, 0)
 
         pause_title = Gtk.Label(label="— P A U S A —")
+        pause_title.set_can_focus(False)
         pause_title.override_font(Pango.FontDescription("Serif 24"))
         pause_title.override_color(Gtk.StateFlags.NORMAL, GOLD)
         pause_title.set_halign(Gtk.Align.CENTER)
@@ -436,6 +447,7 @@ class GameScreen(BaseScreen):
         self._pause_labels: list[Gtk.Label] = []
         for text, action in self._pause_items:
             lbl = Gtk.Label(label=text)
+            lbl.set_can_focus(False)
             lbl._action = action
             lbl.override_font(Pango.FontDescription("Sans 18"))
             lbl.set_padding(0, 10)
@@ -447,6 +459,7 @@ class GameScreen(BaseScreen):
         self._pause_box.pack_start(Gtk.Box(), True, True, 0)
 
         self._pause_help = Gtk.Label()
+        self._pause_help.set_can_focus(False)
         self._pause_help.override_font(Pango.FontDescription("Sans 10"))
         self._pause_help.set_halign(Gtk.Align.CENTER)
         self._pause_box.pack_start(self._pause_help, False, False, 8)
@@ -456,6 +469,7 @@ class GameScreen(BaseScreen):
         # ── help bar ───────────────────────────────────────────
 
         self._help = Gtk.Label(label="[ F10 ]  pausa")
+        self._help.set_can_focus(False)
         self._help.override_font(Pango.FontDescription("Sans 10"))
         self._help.override_color(Gtk.StateFlags.NORMAL, DIM)
         self._help.set_halign(Gtk.Align.CENTER)
@@ -493,7 +507,6 @@ class GameScreen(BaseScreen):
         self._help.set_text("[ F10 ]  pausa")
         self._launch_vim()
         self._terminal.grab_focus()
-        self._terminal.grab_add()
 
     def _launch_vim(self):
         swap = os.path.join(os.path.dirname(self._tmp_file), "." + os.path.basename(self._tmp_file) + ".swp")
@@ -515,7 +528,6 @@ class GameScreen(BaseScreen):
         self._pid = pid if ok else None
 
     def on_hide(self):
-        self._terminal.grab_remove()
         if self._pid:
             try:
                 os.kill(self._pid, 15)
@@ -525,7 +537,6 @@ class GameScreen(BaseScreen):
 
     def _on_vim_exited(self, terminal, status):
         self._pid = None
-        self._terminal.grab_remove()
         from levels import get_expected, evaluate
 
         expected = get_expected(self._level_id)
@@ -560,6 +571,7 @@ class GameScreen(BaseScreen):
             if event.keyval == Gdk.KEY_F10:
                 self._enter_pause()
                 return True
+            self._terminal.grab_focus()
             return False
         if self._phase == "pause":
             return self._handle_pause_key(event)
@@ -572,7 +584,6 @@ class GameScreen(BaseScreen):
 
     def _enter_pause(self):
         self._phase = "pause"
-        self._terminal.grab_remove()
         self._pause_index = 0
         self._terminal.hide()
         self._pause_box.show()
@@ -606,12 +617,10 @@ class GameScreen(BaseScreen):
         self._pause_box.hide()
         self._terminal.show()
         self._terminal.grab_focus()
-        self._terminal.grab_add()
         self._help.set_text("[ F10 ]  pausa")
 
     def _restart_level(self):
         from levels import LEVELS
-        self._terminal.grab_remove()
         if self._pid:
             try:
                 os.kill(self._pid, 15)
@@ -625,7 +634,6 @@ class GameScreen(BaseScreen):
         self._terminal.show()
         self._launch_vim()
         self._terminal.grab_focus()
-        self._terminal.grab_add()
 
 
 # ── Load Select ───────────────────────────────────────────────────────
