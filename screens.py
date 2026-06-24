@@ -91,6 +91,7 @@ class MainMenu(BaseScreen):
         if has_save:
             self._items = [
                 ("CONTINUAR", "continue"),
+                ("CARGAR PARTIDA", "load_game"),
                 ("NUEVA PARTIDA", "new_game"),
                 ("OPCIONES", "options"),
                 ("SALIR", "quit"),
