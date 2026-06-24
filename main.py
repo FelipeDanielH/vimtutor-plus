@@ -8,7 +8,7 @@ from gi.repository import Gtk, Gdk
 
 from state import GameState
 from save_manager import JsonSaver
-from screens import MainMenu, CharacterCreate, IntroScreen, LoadSelect, BaseScreen
+from screens import MainMenu, CharacterCreate, IntroScreen, GameScreen, LoadSelect, BaseScreen
 
 SLOT_DIR = os.path.expanduser("~/.vimtutor-plus")
 SLOT_PATHS = [os.path.join(SLOT_DIR, f"slot_{i}.json") for i in range(3)]
@@ -95,13 +95,15 @@ class App:
     def register_screens(self):
         s_main = MainMenu(self.game, self.on_menu_action)
         s_create = CharacterCreate(self.game, self.on_name_confirmed, self._on_create_back)
-        s_intro = IntroScreen(self.game, lambda: self.show_screen("main_menu"))
+        s_intro = IntroScreen(self.game, lambda: self.show_screen("game_screen"))
         s_load = LoadSelect(self.game, self.on_slot_selected, self.on_slot_deleted, lambda: self.show_screen("main_menu"))
+        s_game = GameScreen(self.game, 1, self.on_level_complete, lambda: self.show_screen("main_menu"))
 
         self._register("main_menu", s_main)
         self._register("character_create", s_create)
         self._register("intro", s_intro)
         self._register("load_select", s_load)
+        self._register("game_screen", s_game)
 
     def _register(self, name: str, screen):
         self._screens[name] = screen
@@ -181,6 +183,12 @@ class App:
         if self._active_slot == slot_index:
             self.game = GameState()
             self._active_slot = None
+
+    def on_level_complete(self, level_id: int):
+        from levels import LEVELS
+        lv = next(x for x in LEVELS if x["id"] == level_id)
+        stars = 3
+        self.game.complete_level(level_id, stars, lv["xp"])
 
     # ── key dispatch ───────────────────────────────────────────
 

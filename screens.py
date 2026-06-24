@@ -1,6 +1,8 @@
 import os
 import json
-from gi.repository import Gtk, Gdk, Pango, GLib
+import shutil
+import tempfile
+from gi.repository import Gtk, Gdk, Pango, GLib, Vte
 
 
 SLOT_DIR = os.path.expanduser("~/.vimtutor-plus")
@@ -333,6 +335,167 @@ class IntroScreen(BaseScreen):
     def handle_key(self, event):
         if self._show_prompt and event.keyval == Gdk.KEY_l:
             self.on_continue()
+            return True
+        return False
+
+
+# ── Game Screen ────────────────────────────────────────────────────────
+
+class GameScreen(BaseScreen):
+    def __init__(self, game_state, level_id, on_complete, on_back):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._gs = game_state
+        self._level_id = level_id
+        self.on_complete = on_complete
+        self.on_back = on_back
+        self._pid = None
+        self._tmp_file = None
+        self._phase = "playing"
+        self._passed = False
+        self._build()
+
+    def _build(self):
+        top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        top.set_halign(Gtk.Align.CENTER)
+        self.pack_start(top, False, False, 0)
+
+        from levels import LEVELS
+        lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        self._title = Gtk.Label(label=f"NIVEL {lv['id']}: {lv['name']}")
+        self._title.override_font(Pango.FontDescription("Serif 20"))
+        self._title.override_color(Gtk.StateFlags.NORMAL, GOLD)
+        self._title.set_halign(Gtk.Align.CENTER)
+        top.pack_start(self._title, False, False, 4)
+
+        self._inst = Gtk.Label(label=lv["instruction"])
+        self._inst.override_font(Pango.FontDescription("Sans 12"))
+        self._inst.override_color(Gtk.StateFlags.NORMAL, SUBTLE)
+        self._inst.set_halign(Gtk.Align.CENTER)
+        top.pack_start(self._inst, False, False, 2)
+
+        guide_text = "  ".join(f"[{k}] {d}" for k, d in lv["guide"])
+        self._guide = Gtk.Label(label=guide_text)
+        self._guide.override_font(Pango.FontDescription("Sans 10"))
+        self._guide.override_color(Gtk.StateFlags.NORMAL, DIM)
+        self._guide.set_halign(Gtk.Align.CENTER)
+        top.pack_start(self._guide, False, False, 2)
+
+        self.pack_start(Gtk.Box(), False, False, 0)
+
+        self._terminal = Vte.Terminal()
+        self._terminal.set_size(80, 20)
+        self._terminal.set_font(Pango.FontDescription("Monospace 12"))
+        self._terminal.override_color(Gtk.StateFlags.NORMAL,
+                                       Gdk.RGBA(0.9, 0.9, 0.95, 1))
+        self._terminal.override_background_color(Gtk.StateFlags.NORMAL,
+                                                  Gdk.RGBA(0.05, 0.05, 0.1, 1))
+        self._terminal.connect("child-exited", self._on_vim_exited)
+        self.pack_start(self._terminal, True, True, 0)
+
+        self._result_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._result_box.set_halign(Gtk.Align.CENTER)
+        self._result_box.set_valign(Gtk.Align.CENTER)
+        self.pack_start(self._result_box, True, True, 0)
+
+        self._result_title = Gtk.Label()
+        self._result_title.override_font(Pango.FontDescription("Serif 28"))
+        self._result_title.set_halign(Gtk.Align.CENTER)
+        self._result_box.pack_start(self._result_title, False, False, 0)
+
+        self._result_xp = Gtk.Label()
+        self._result_xp.override_font(Pango.FontDescription("Sans 18"))
+        self._result_xp.set_halign(Gtk.Align.CENTER)
+        self._result_box.pack_start(self._result_xp, False, False, 10)
+
+        self._result_box.pack_start(Gtk.Box(), True, True, 0)
+
+        self._help = Gtk.Label(label="[ q ]  salir del nivel")
+        self._help.override_font(Pango.FontDescription("Sans 10"))
+        self._help.override_color(Gtk.StateFlags.NORMAL, DIM)
+        self._help.set_halign(Gtk.Align.CENTER)
+        self.pack_start(self._help, False, False, 6)
+
+    def on_show(self):
+        from levels import LEVELS, get_start
+        lv = next(x for x in LEVELS if x["id"] == self._level_id)
+        tmp_dir = os.path.join(tempfile.gettempdir(), "vimtutor")
+        os.makedirs(tmp_dir, exist_ok=True)
+        self._tmp_file = os.path.join(tmp_dir, f"level_{self._level_id}.txt")
+        shutil.copy(lv["start_file"], self._tmp_file)
+
+        self._phase = "playing"
+        self._passed = False
+        self._result_title.set_text("")
+        self._result_xp.set_text("")
+        self._result_box.hide()
+        self._terminal.show()
+        self._help.set_text("[ q ]  salir del nivel")
+
+        # Hide game_title on result? No, keep it.
+
+        vim_path = shutil.which("vim") or "/usr/bin/vim"
+        ok, pid = self._terminal.spawn_sync(
+            Vte.PtyFlags.DEFAULT,
+            None,
+            [vim_path, self._tmp_file],
+            [],
+            GLib.SpawnFlags.DEFAULT,
+            None,
+            None,
+            None,
+        )
+        self._pid = pid if ok else None
+
+    def on_hide(self):
+        if self._pid:
+            try:
+                os.kill(self._pid, 15)
+            except OSError:
+                pass
+            self._pid = None
+
+    def _on_vim_exited(self, terminal, status):
+        self._pid = None
+        from levels import get_expected, evaluate
+
+        expected = get_expected(self._level_id)
+        try:
+            with open(self._tmp_file) as f:
+                user = f.read()
+        except OSError:
+            user = ""
+
+        self._passed = evaluate(self._level_id, user, expected)
+
+        self._phase = "result"
+        self._terminal.hide()
+
+        if self._passed:
+            lv = next(x for x in LEVELS if x["id"] == self._level_id)
+            self._result_title.set_text("¡NIVEL COMPLETADO!")
+            self._result_title.override_color(Gtk.StateFlags.NORMAL, GREEN)
+            self._result_xp.set_text(f"★ ★ ★   XP +{lv['xp']}")
+            self._result_xp.override_color(Gtk.StateFlags.NORMAL, GOLD)
+            self.on_complete(self._level_id)
+        else:
+            self._result_title.set_text("INTÉNTALO DE NUEVO")
+            self._result_title.override_color(Gtk.StateFlags.NORMAL,
+                                               Gdk.RGBA(0.9, 0.3, 0.2, 1))
+            self._result_xp.set_text("")
+        self._result_box.show()
+        self._help.set_text("[ l ]  continuar")
+
+    def handle_key(self, event):
+        if self._phase == "playing":
+            if event.keyval == Gdk.KEY_q:
+                self.on_back()
+                return True
+            if event.keyval == Gdk.KEY_h:
+                self.on_back()
+                return True
+            return False
+        if self._phase == "result" and event.keyval == Gdk.KEY_l:
+            self.on_back()
             return True
         return False
 
